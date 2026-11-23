@@ -3,7 +3,7 @@
 
 account:
   exchange: Kraken
-  pot_gbp: 1000            # CONFIRM: your real trading pot (you said £500–£5,000)
+  pot_gbp: 5000            # confirmed 2026-11-23
   max_position_pct: 20     # at most 1/5 of the pot in one trade
   risk_per_trade_pct: 2    # size each trade so hitting the stop loses at most 2% of the pot
   max_open_positions: 5
