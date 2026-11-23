@@ -178,6 +178,9 @@ def main():
         if len(df) < 60:
             print(f"{coin:5} not enough history after the 200-day warm-up ({len(df)} days)"); continue
         ok = btc_ok.reindex(df.index).fillna(False) if coin != "BTC" else pd.Series(True, index=df.index)
+        need = cfg.get("filters", {}).get("confirm_closes_above_sma", 1)
+        above = (df["close"] > df["sma"]).astype(int)
+        ok = ok & (above.rolling(need).sum() == need)   # adopted confirmation filter (rules.yaml)
         bh = df["close"] / df["close"].iloc[0]
         bh_tot, _, bh_dd = stats(bh)
         for res in (run_trend(df, ok, cfg, True), run_trend(df, ok, cfg, False), run_staged(df, cfg)):

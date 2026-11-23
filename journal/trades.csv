@@ -1,1 +1,1 @@
-date_opened,coin,pair,entry_price,quantity,cost_gbp,fees_gbp,initial_stop,targets,rule,reason,date_closed,exit_price,proceeds_gbp,pnl_gbp,pnl_pct,exit_reason,lesson
+date_opened,coin,pair,entry_price,quantity,cost_gbp,fees_gbp,initial_stop,targets,rule,reason,fng_at_entry,btc_mvrv_at_entry,funding_apr_at_entry,stablecoin_30d_pct_at_entry,date_closed,exit_price,proceeds_gbp,pnl_gbp,pnl_pct,exit_reason,lesson

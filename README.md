@@ -33,6 +33,15 @@ slippage per side, acts on signals from daily closes, and fills at the next day'
 | **A. Trend:** buy when the coin closes above its 200-day average and BTC is above its own; exit on the trailing stop or a close below the average | BTC, ETH, SOL: much smaller drawdowns than buying and holding with a 20% stop (BTC -55% vs -77%, ETH -44% vs -90%, SOL -48% vs -96%). Fails on LINK, TRX, TAO | **On** for BTC, ETH, SOL. Half size for HYPE and XMR (under a year of data). Off for LINK, TRX, TAO |
 | **Trailing stop width** | A 10% stop is too tight for BTC (+83% vs +430% with no stop). Results jump around between 10% and 30%, so there is no single "optimal" value | **20%** (middle choice, not tuned to the best result) |
 | **B. Staged oversold buying** (RSI below 30, below the 200-day average) | BTC -20% vs +432% buy-and-hold. SOL -57% | **Off** |
+| **Wait for a 2nd close above the average** (`research_filters.py`) | 2023–26 hold-out: average profit per trade BTC 6.6% to 8.0%, SOL 7.1% to 7.7%, ETH 14.2% to 12.3%. 2018–22: better on all 3 | **On**. A small edge that cuts one-day false breakouts |
+| **New data used as filters:** Fear & Greed, MVRV (Coin Metrics), stablecoin supply (DefiLlama), funding history (Binance), weekly trend, relative strength, volatility | None improved the 2023–26 hold-out on top of the trend rule. Weekly > 20-week average looked best in 2018–22 (BTC +374% vs +137%) and then failed 2023–26 | **Rejected as rules.** Shown on the board as context and logged at entry, to be reviewed after 20 or more real trades |
+
+### Filter research method
+`python scripts/research_filters.py` picks rules on 2018–2022 and tests them only on 2023 onward, which
+the rules were never fitted to. A filter is adopted only if it improves profit per trade or drawdown on
+at least 2 of BTC, ETH and SOL in the hold-out, without cutting total return by more than 20%. Paid
+on-chain data (Glassnode, CryptoQuant) is **not** worth buying yet: the free MVRV filter never even
+triggered in 2023–26, so there's no evidence that more on-chain data would add an edge to this rule.
 
 Limits: every test covers one 2018–2026 history, and the 10–30% stop sweep shows results are sensitive
 to luck and path. Most results have fewer than 30 trades, which is too few for confidence. Trend rules
@@ -64,8 +73,9 @@ python scripts/backtest.py BTC --trades
 
 ## Data sources
 
-Binance public data (`data-api.binance.vision`) supplies history and Kraken's public API supplies live
-prices and spreads; both are allowed in this repo's cloud environment. During checks Claude also uses
+Binance public data (`data-api.binance.vision`, `data.binance.vision` for funding), Kraken (live prices),
+alternative.me (Fear & Greed), Coin Metrics community API (MVRV) and DefiLlama (stablecoin supply).
+All are free and allowed in this repo's cloud environment. During checks Claude also uses
 CoinMarketCap, CoinGecko, Coinversa (Hyperliquid), FXMacroData and TextToQuant.
 
 ## Adding a plan

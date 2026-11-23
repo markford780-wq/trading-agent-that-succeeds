@@ -87,6 +87,81 @@ def candles(source: str, refresh: bool = True, drop_open_bar: bool = True) -> pd
     return df
 
 
+# ---------- extra daily data (each returns a Series/DataFrame indexed by date) ----------
+
+def _cached(name: str, fetch, refresh: bool):
+    path = CACHE / f"{name}.csv"
+    if refresh or not path.exists():
+        df = fetch()
+        CACHE.mkdir(parents=True, exist_ok=True)
+        df.to_csv(path)
+    df = pd.read_csv(path, index_col=0)
+    df.index = pd.to_datetime(df.index).date
+    return df
+
+
+def fear_greed(refresh: bool = True) -> pd.Series:
+    """Crypto Fear & Greed index (alternative.me), 0 = extreme fear, 100 = extreme greed. Since 2018-02."""
+    def fetch():
+        d = requests.get("https://api.alternative.me/fng/", params={"limit": 0, "format": "json"}, timeout=30).json()
+        s = pd.Series({pd.to_datetime(int(x["timestamp"]), unit="s").date(): int(x["value"]) for x in d["data"]})
+        return s.sort_index().to_frame("fng")
+    return _cached("fear_greed", fetch, refresh)["fng"]
+
+
+def coinmetrics(asset: str, metrics: list[str], refresh: bool = True) -> pd.DataFrame:
+    """Coin Metrics community API daily asset metrics, e.g. CapMVRVCur (MVRV), AdrActCnt (active addresses)."""
+    def fetch():
+        url = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics"
+        params = {"assets": asset, "metrics": ",".join(metrics), "frequency": "1d",
+                  "start_time": "2014-01-01", "page_size": 10000}
+        rows = []
+        while url:
+            d = requests.get(url, params=params, timeout=60).json()
+            rows += d.get("data", [])
+            url, params = d.get("next_page_url"), None
+        df = pd.DataFrame(rows)
+        df.index = pd.to_datetime(df["time"]).dt.date
+        return df[[m for m in metrics if m in df]].astype(float)
+    return _cached(f"coinmetrics_{asset}_{'_'.join(metrics)}", fetch, refresh)
+
+
+def stablecoin_supply(refresh: bool = True) -> pd.Series:
+    """Total USD stablecoin supply (DefiLlama), all stablecoins."""
+    def fetch():
+        d = requests.get("https://stablecoins.llama.fi/stablecoincharts/all", timeout=60).json()
+        s = pd.Series({pd.to_datetime(int(x["date"]), unit="s").date():
+                       x.get("totalCirculatingUSD", {}).get("peggedUSD", float("nan")) for x in d})
+        return s.sort_index().to_frame("supply")
+    return _cached("stablecoin_supply", fetch, refresh)["supply"]
+
+
+def funding_history(symbol: str, refresh: bool = False) -> pd.Series:
+    """Binance USD-M perpetual funding, summed per day (3 payments/day). Monthly archives, so the
+    current month is missing until it ends. Cached; refresh=True re-downloads everything."""
+    import io
+    import zipfile
+
+    def fetch():
+        frames, month = [], pd.Timestamp("2019-09-01")
+        end = pd.Timestamp.now(tz="UTC").tz_localize(None).replace(day=1)
+        while month < end:
+            url = (f"https://data.binance.vision/data/futures/um/monthly/fundingRate/{symbol}/"
+                   f"{symbol}-fundingRate-{month:%Y-%m}.zip")
+            r = requests.get(url, timeout=30)
+            if r.status_code == 200:
+                with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+                    f = pd.read_csv(z.open(z.namelist()[0]))
+                frames.append(f)
+            month += pd.DateOffset(months=1)
+        f = pd.concat(frames)
+        tcol = next(c for c in f.columns if "time" in c)
+        rcol = next(c for c in f.columns if "rate" in c)
+        f["date"] = pd.to_datetime(f[tcol], unit="ms").dt.date
+        return f.groupby("date")[rcol].sum().to_frame("funding")
+    return _cached(f"funding_{symbol}", fetch, refresh)["funding"]
+
+
 # ---------- indicators ----------
 
 def sma(s: pd.Series, n: int) -> pd.Series:

@@ -30,6 +30,18 @@ macro:
 liquidity:
   max_spread_pct: 0.20      # Kraken bid/ask spread must be below this
 
+filters:
+  # Tested by scripts/research_filters.py (design 2018-2022, hold-out 2023-2026, fees included).
+  # Adopted: wait for a 2nd consecutive daily close above the 200-day average before buying.
+  #   Hold-out expectancy per trade: BTC 6.6% -> 8.0%, SOL 7.1% -> 7.7%; ETH slightly worse
+  #   (14.2% -> 12.3%). Design period better on all three. Cuts 1-day whipsaw buys. Small edge.
+  confirm_closes_above_sma: 2
+  # Tested and REJECTED (no hold-out improvement on top of the trend rule):
+  #   3-close confirmation, close >2% above SMA, weekly 20w/50w trend, relative strength vs BTC,
+  #   volatility filter, Fear & Greed < 75 / < 60, MVRV < 3.0 / < 2.5, stablecoin supply growth,
+  #   funding not in top 10%. Weekly > 20w looked great in 2018-2022 (BTC +374% vs +137%) but failed
+  #   2023-2026: a textbook overfit. These are shown on the board as context only.
+
 signals:
   # Rule A (trend): coin closes above its own 200-day average AND BTC passes the regime rule.
   #   Exit: trailing stop, or a daily close back below the 200-day average.

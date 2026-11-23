@@ -14,7 +14,8 @@ from datetime import datetime, timezone
 
 import requests
 
-from common import ROOT, candles, load_yaml, rsi, rules, sma, watchlist
+from common import (ROOT, candles, coinmetrics, fear_greed, load_yaml, rsi, rules, sma,
+                    stablecoin_supply, watchlist)
 
 
 def kraken_ticker(pair: str):
@@ -35,8 +36,34 @@ def coin_status(source, n):
     df["rsi"] = rsi(df["close"], 14)
     last = df.iloc[-1]
     chg = lambda k: (last["close"] / df["close"].iloc[-1 - k] - 1) * 100 if len(df) > k else float("nan")  # noqa: E731
+    above = df["close"] > df["sma"]
+    # how many consecutive completed daily closes are above the average (0 if the last one isn't)
+    streak = 0
+    for a in reversed(above.to_list()):
+        if not a:
+            break
+        streak += 1
     return {"date": df.index[-1], "close": last["close"], "sma": last["sma"], "rsi": last["rsi"],
-            "d7": chg(7), "d30": chg(30), "above": last["close"] > last["sma"]}
+            "d7": chg(7), "d30": chg(30), "above": bool(above.iloc[-1]), "streak": streak}
+
+
+def context_line():
+    """Sentiment / on-chain / liquidity readings. Context only: none showed a tested edge (see README)."""
+    parts = []
+    try:
+        parts.append(f"Fear & Greed {int(fear_greed().iloc[-1])}")
+    except Exception:  # noqa: BLE001
+        parts.append("Fear & Greed no data")
+    try:
+        parts.append(f"BTC MVRV {coinmetrics('btc', ['CapMVRVCur'])['CapMVRVCur'].iloc[-1]:.2f}")
+    except Exception:  # noqa: BLE001
+        parts.append("BTC MVRV no data")
+    try:
+        st = stablecoin_supply()
+        parts.append(f"stablecoin supply ${st.iloc[-1] / 1e9:,.0f}B ({(st.iloc[-1] / st.iloc[-31] - 1) * 100:+.1f}% 30d)")
+    except Exception:  # noqa: BLE001
+        parts.append("stablecoin supply no data")
+    return "**Context (record at entry, not a rule):** " + " · ".join(parts)
 
 
 def main():
@@ -57,6 +84,7 @@ def main():
     out.append("| Coin | Last close | 200d avg | vs avg | RSI14 | 7d | 30d | Kraken last | Spread | Evidence | Status |")
     out.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|")
     max_spread = cfg["liquidity"]["max_spread_pct"]
+    need = cfg.get("filters", {}).get("confirm_closes_above_sma", 1)
     for p in wl["plans"]:
         try:
             s = btc if p["coin"] == "BTC" else coin_status(p["history"], n)
@@ -70,12 +98,16 @@ def main():
             status = f"NO: {abs(vs):.1f}% below its avg"
         elif not regime_ok:
             status = "NO: BTC regime fails"
+        elif s["streak"] < need:
+            status = f"WAIT: {s['streak']} close(s) above avg, need {need}"
         else:
             status = "CANDIDATE: run full checklist (macro, funding, news)"
         spread = f"{t['spread_pct']:.3f}%" + (" ⚠️" if t["spread_pct"] > max_spread else "") if t else "no data"
         out.append(f"| {p['coin']} | {s['close']:,.6g} | {s['sma']:,.6g} | {vs:+.1f}% | {s['rsi']:.0f} | "
                    f"{s['d7']:+.1f}% | {s['d30']:+.1f}% | {t['last'] if t else 'no data'} ({p['kraken_pair']}) | "
                    f"{spread} | {p.get('evidence', '')} | {status} |")
+
+    out.append("\n" + context_line())
 
     pos = load_yaml("journal/positions.yaml").get("positions") or []
     out.append("\n**Open positions:** " + ("none" if not pos else ""))
