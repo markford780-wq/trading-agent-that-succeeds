@@ -1,0 +1,14 @@
+# Open positions. The scheduled checks read this to monitor trailing stops and targets.
+# Add an entry when you buy; remove it (and fill in journal/trades.csv) when you sell.
+#
+# Example:
+# - coin: BTC
+#   pair: XBTGBP
+#   opened: 2026-12-01
+#   entry_price: 55400        # in the pair's currency (GBP here)
+#   quantity: 0.0036
+#   highest_close: 55400      # update as price rises; trailing stop = highest_close * (1 - 10%)
+#   targets: [58000, 62800]
+#   rule: rule_a_trend
+
+positions: []

@@ -1,0 +1,85 @@
+# Buy plans. All price levels are in USD (Kraken also lists GBP pairs for BTC/ETH/SOL; the trigger
+# is checked on USD daily closes). Reference levels set 2026-11-23 from CoinMarketCap technical
+# analysis; the 200-day average moves every day, so scripts and checks recompute it live.
+#
+# Main exit for every trend plan: trailing stop (config/rules.yaml, now 20%) or a daily close back
+# below the 200-day average. "checkpoints" are resistance levels to review (optionally take part
+# profit), not automatic exits. "history" is where scripts get daily candles.
+
+plans:
+  - coin: BTC
+    cmc_id: 1
+    kraken_pair: XBTGBP        # XBTUSD also listed
+    history: binance:BTCUSDT
+    rule: rule_a_trend
+    evidence: tested_ok
+    trigger: "Daily close above the 200-day average (72,326 on 2026-11-23)"
+    entry: 72500
+    stop: "20% trailing; initial ~58,000"
+    checkpoints: [75579, 81890]
+    cancel: "Daily close back below the 200-day average before entry"
+    set: 2026-11-23
+
+  - coin: ETH
+    cmc_id: 1027
+    kraken_pair: ETHGBP
+    history: binance:ETHUSDT
+    rule: rule_a_trend
+    evidence: tested_ok
+    trigger: "BTC passes regime rule AND ETH daily close above its 200-day average (2,122 on 2026-11-23)"
+    entry: 2130
+    stop: "20% trailing; initial ~1,704"
+    checkpoints: [2231.89, 2446.05]
+    cancel: "BTC closes back below its 200-day average"
+    set: 2026-11-23
+
+  - coin: SOL
+    cmc_id: 5426
+    kraken_pair: SOLGBP
+    history: binance:SOLUSDT
+    rule: rule_a_trend
+    evidence: tested_ok
+    trigger: "BTC passes regime rule AND SOL daily close above its 200-day average (88.32 on 2026-11-23)"
+    entry: 88.5
+    stop: "20% trailing; initial ~70.80"
+    checkpoints: [94.46, 103.50]
+    cancel: "BTC closes back below its 200-day average"
+    set: 2026-11-23
+
+  - coin: HYPE
+    cmc_id: 32196
+    kraken_pair: HYPEUSD       # no GBP pair on Kraken
+    history: kraken:HYPEUSD    # Kraken history only from 2026-01-28
+    rule: rule_a_trend
+    evidence: untested_half_size
+    trigger: "BTC passes regime rule AND HYPE daily close above max(200-day average 70.01, 71.50)"
+    entry: 72
+    stop: "20% trailing; initial ~57.60"
+    checkpoints: [76.33, 81.16, 87.13]
+    cancel: "BTC closes back below its 200-day average"
+    set: 2026-11-23
+
+  - coin: XMR
+    cmc_id: 328
+    kraken_pair: XMRUSD        # on Kraken's public API; confirm your UK account can trade it
+    history: kraken:XMRUSD     # Kraken history only from 2024-12-03 (Binance delisted XMR in Feb 2024)
+    rule: rule_a_trend
+    evidence: untested_half_size
+    trigger: "BTC passes regime rule AND XMR still above its 200-day average (443) AND Hyperliquid funding < +20% APR"
+    entry: "prefer a pullback into 445-475"
+    stop: "20% trailing; and exit on a daily close below the 200-day average"
+    checkpoints: [535.04, 561.35]
+    cancel: "Daily close below its 200-day average"
+    set: 2026-11-23
+
+# Re-tested by scripts/backtest.py but no plan (see rejected).
+research:
+  - {coin: LINK, history: binance:LINKUSDT}
+  - {coin: TRX,  history: binance:TRXUSDT}
+  - {coin: TAO,  history: binance:TAOUSDT}
+
+rejected:
+  - {coin: LINK, reason: "Backtest 2019-2026: trend rule -59% (10% stop) / -17% (no stop) vs +264% buy-and-hold"}
+  - {coin: TRX,  reason: "Backtest 2018-2026: trend rule -15% / +164% vs +1600% buy-and-hold; also < 1R on targets"}
+  - {coin: TAO,  reason: "Backtest 2024-2026: trend rule -73% / -80%; 16% win rate"}
+  - {coin: BTC,  reason: "Oversold-bounce buy (rule B): -20% over 2018-2026 vs +432% buy-and-hold"}
