@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 
 import requests
 
+import patterns
+
 from common import (ROOT, candles, coinmetrics, fear_greed, load_yaml, rsi, rules, sma,
                     stablecoin_supply, watchlist)
 
@@ -81,18 +83,23 @@ def main():
     out.append(f"**BTC regime:** close {btc['close']:,.0f} vs 200-day avg {btc['sma']:,.0f} "
                f"({(btc['close'] / btc['sma'] - 1) * 100:+.1f}%), RSI14 {btc['rsi']:.1f} -> "
                f"{'PASS: trend buys allowed' if regime_ok else 'FAIL: no new trend buys'}\n")
-    out.append("| Coin | Last close | 200d avg | vs avg | RSI14 | 7d | 30d | Kraken last | Spread | Evidence | Status |")
+    out.append("| Coin | Last close | 200d avg | vs avg | RSI14 | 7d | 30d | Kraken last | Spread | Size | Status |")
     out.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|")
     max_spread = cfg["liquidity"]["max_spread_pct"]
     need = cfg.get("filters", {}).get("confirm_closes_above_sma", 1)
-    for p in wl["plans"]:
+    size_of = {"tested_ok": "full", "untested_half_size": "half", "failed": "none", "not_tradable": "none"}
+    for p in wl["plans"] + wl.get("universe", []):
         try:
             s = btc if p["coin"] == "BTC" else coin_status(p["history"], n)
         except Exception as e:  # noqa: BLE001
             out.append(f"| {p['coin']} | no data ({e}) |||||||||"); continue
         t = kraken_ticker(p["kraken_pair"])
         vs = (s["close"] / s["sma"] - 1) * 100
-        if s["sma"] != s["sma"]:  # NaN: not enough history
+        if p.get("evidence") == "not_tradable":
+            status = "SKIP: no usable Kraken market"
+        elif p.get("evidence") == "failed":
+            status = "SKIP: trend rule failed its backtest" + (" (now above avg)" if s["above"] else "")
+        elif s["sma"] != s["sma"]:  # NaN: not enough history
             status = "no 200d avg yet"
         elif not s["above"]:
             status = f"NO: {abs(vs):.1f}% below its avg"
@@ -105,9 +112,13 @@ def main():
         spread = f"{t['spread_pct']:.3f}%" + (" ⚠️" if t["spread_pct"] > max_spread else "") if t else "no data"
         out.append(f"| {p['coin']} | {s['close']:,.6g} | {s['sma']:,.6g} | {vs:+.1f}% | {s['rsi']:.0f} | "
                    f"{s['d7']:+.1f}% | {s['d30']:+.1f}% | {t['last'] if t else 'no data'} ({p['kraken_pair']}) | "
-                   f"{spread} | {p.get('evidence', '')} | {status} |")
+                   f"{spread} | {size_of.get(p.get('evidence'), '?')} | {status} |")
 
     out.append("\n" + context_line())
+    try:
+        out.append("\n" + patterns.alert_section(patterns.history_stats()))
+    except Exception as e:  # noqa: BLE001
+        out.append(f"\n**Candle-pattern alerts:** no data ({e})")
 
     pos = load_yaml("journal/positions.yaml").get("positions") or []
     out.append("\n**Open positions:** " + ("none" if not pos else ""))

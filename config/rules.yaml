@@ -51,12 +51,9 @@ signals:
   # Whether each rule is ENABLED is set from the backtest results (see README / backtest output).
   rule_a_trend:
     enabled: true
-    # Backtest 2018-2026, fees included: beat buy-and-hold on return/drawdown for BTC, ETH, SOL.
-    tested_ok: [BTC, ETH, SOL]
-    # Not enough history to judge (Kraken gives ~1 year after the 200-day warm-up): half size only.
-    untested_half_size: [HYPE, XMR]
-    # Lost money or lagged badly with this rule: do not trade with it.
-    failed: [LINK, TRX, TAO]
+    # Which coins it may trade is set per coin by 'evidence' in config/watchlist.yaml
+    # (scripts/classify_universe.py). 2026-11-23, top 30: tested_ok BTC ETH SOL AVAX HBAR SHIB PEPE;
+    # half size (too little data) HYPE CC CRO M ASTER ONDO; failed on the other 17.
   rule_b_staged:
     enabled: false          # Backtest: BTC -20% vs +432% buy-and-hold; SOL -57%; ETH +23% vs +99%. Rejected.
     rsi_days: 14

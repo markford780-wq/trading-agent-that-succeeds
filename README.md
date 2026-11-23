@@ -36,6 +36,31 @@ slippage per side, acts on signals from daily closes, and fills at the next day'
 | **Wait for a 2nd close above the average** (`research_filters.py`) | 2023–26 hold-out: average profit per trade BTC 6.6% to 8.0%, SOL 7.1% to 7.7%, ETH 14.2% to 12.3%. 2018–22: better on all 3 | **On**. A small edge that cuts one-day false breakouts |
 | **New data used as filters:** Fear & Greed, MVRV (Coin Metrics), stablecoin supply (DefiLlama), funding history (Binance), weekly trend, relative strength, volatility | None improved the 2023–26 hold-out on top of the trend rule. Weekly > 20-week average looked best in 2018–22 (BTC +374% vs +137%) and then failed 2023–26 | **Rejected as rules.** Shown on the board as context and logged at entry, to be reviewed after 20 or more real trades |
 
+### Top-30 coverage (`scripts/classify_universe.py`)
+All 30 tradable top-30 coins are listed on Kraken. The trend rule (20% trailing stop, 2-close confirmation)
+was backtested on each one:
+- **Full size:** BTC, ETH, SOL, AVAX, HBAR, SHIB, PEPE. The rule beat buying and holding on risk-adjusted return with at least 3 years of data.
+- **Half size:** HYPE, CC, CRO, ASTER, ONDO. Too little history to judge.
+- **Don't trade with this rule:** BNB, XRP, TRX, ZEC, XMR, DOGE, LINK, ADA, XLM, BCH, NEAR, LTC, UNI, GRAM, SUI, TAO, AAVE.
+  It lost money or lagged buy-and-hold badly on these.
+- **Not tradable:** M (Kraken's `MUSD` market isn't MemeCore).
+
+Testing 30 coins means a few will pass or fail by luck, so read "full size" as "no evidence against".
+
+### Candle patterns (`scripts/patterns.py`)
+The script finds 11 classic daily patterns on every coin and compares the following 10 days with that
+coin's normal 10-day return. Results are pooled across coins: 2018–22 design, 2023–26 hold-out. Only
+**three white soldiers** held up: +4.6% above normal in the hold-out, t = 2.3, 247 cases. Bullish engulfing
+(−1.1%) and hammer (−0.8%) were followed by *worse* than normal returns. The board alerts on validated
+patterns that have **formed** (last daily close) or are **forming** (today's unfinished candle at the
+current price), and only counts the rest.
+
+### Twitter / X (XPOZ)
+This is a live check only, for coins that become candidates: compare the last 24 hours of `$TICKER` tweets
+with the daily average of the previous 7 days. A spike of more than 3× with no news behind it is flagged as
+hype. It can't be backtested cheaply, because that would take thousands of daily counts, and the Fear & Greed
+index, which already includes social data, showed no edge.
+
 ### Filter research method
 `python scripts/research_filters.py` picks rules on 2018–2022 and tests them only on 2023 onward, which
 the rules were never fitted to. A filter is adopted only if it improves profit per trade or drawdown on

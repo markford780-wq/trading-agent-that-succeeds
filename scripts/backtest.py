@@ -157,7 +157,7 @@ def main():
 
     cfg, wl = rules(), watchlist()
     n_sma = cfg["regime"]["btc_trend_sma_days"]
-    items = [(p["coin"], p["history"]) for p in wl["plans"]] + [(w["coin"], w["history"]) for w in wl.get("research", [])]
+    items = [(p["coin"], p["history"]) for p in wl["plans"]] + [(w["coin"], w["history"]) for w in wl.get("universe", [])]
     if args.coins:
         items = [it for it in items if it[0] in {c.upper() for c in args.coins}]
 

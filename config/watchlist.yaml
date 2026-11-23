@@ -64,7 +64,7 @@ plans:
     kraken_pair: XMRUSD        # on Kraken's public API; confirm your UK account can trade it
     history: kraken:XMRUSD     # Kraken history only from 2024-12-03 (Binance delisted XMR in Feb 2024)
     rule: rule_a_trend
-    evidence: untested_half_size
+    evidence: failed   # classify_universe.py 2026-11-23: rule -8% vs +59% buy-and-hold (1.4 years of data)
     trigger: "BTC passes regime rule AND XMR still above its 200-day average (443) AND Hyperliquid funding < +20% APR"
     entry: "prefer a pullback into 445-475"
     stop: "20% trailing; and exit on a daily close below the 200-day average"
@@ -72,14 +72,39 @@ plans:
     cancel: "Daily close below its 200-day average"
     set: 2026-11-23
 
-# Re-tested by scripts/backtest.py but no plan (see rejected).
-research:
-  - {coin: LINK, history: binance:LINKUSDT}
-  - {coin: TRX,  history: binance:TRXUSDT}
-  - {coin: TAO,  history: binance:TAOUSDT}
+# Rest of the tradable top 30 by market cap (2026-11-23; stablecoins, LEO, WBT and tokenised gold excluded).
+# Each is traded only by the trend rule; 'evidence' is set by scripts/classify_universe.py from the backtest:
+#   tested_ok = rule beat buy-and-hold risk-adjusted with >= 3 years of data -> full size
+#   untested_half_size = passed but < 3 years of data, or too little data to test -> half size
+#   failed = rule lost or lagged badly -> do not trade with this rule
+#   not_tradable = no usable Kraken market
+universe:
+  - {coin: BNB, cmc_id: 1839, kraken_pair: BNBUSD, history: "binance:BNBUSDT", evidence: failed}
+  - {coin: XRP, cmc_id: 52, kraken_pair: XRPGBP, history: "binance:XRPUSDT", evidence: failed}
+  - {coin: TRX, cmc_id: 1958, kraken_pair: TRXUSD, history: "binance:TRXUSDT", evidence: failed}
+  - {coin: ZEC, cmc_id: 1437, kraken_pair: ZECUSD, history: "binance:ZECUSDT", evidence: failed}
+  - {coin: DOGE, cmc_id: 74, kraken_pair: XDGGBP, history: "binance:DOGEUSDT", evidence: failed}
+  - {coin: LINK, cmc_id: 1975, kraken_pair: LINKGBP, history: "binance:LINKUSDT", evidence: failed}
+  - {coin: ADA, cmc_id: 2010, kraken_pair: ADAGBP, history: "binance:ADAUSDT", evidence: failed}
+  - {coin: XLM, cmc_id: 512, kraken_pair: XLMGBP, history: "binance:XLMUSDT", evidence: failed}
+  - {coin: BCH, cmc_id: 1831, kraken_pair: BCHGBP, history: "binance:BCHUSDT", evidence: failed}
+  - {coin: NEAR, cmc_id: 6535, kraken_pair: NEARUSD, history: "binance:NEARUSDT", evidence: failed}
+  - {coin: LTC, cmc_id: 2, kraken_pair: LTCGBP, history: "binance:LTCUSDT", evidence: failed}
+  - {coin: CC, cmc_id: 37263, kraken_pair: CCUSD, history: "kraken:CCUSD", evidence: untested_half_size}
+  - {coin: AVAX, cmc_id: 5805, kraken_pair: AVAXUSD, history: "binance:AVAXUSDT", evidence: tested_ok}
+  - {coin: UNI, cmc_id: 7083, kraken_pair: UNIUSD, history: "binance:UNIUSDT", evidence: failed}
+  - {coin: GRAM, cmc_id: 11419, kraken_pair: TONUSD, history: "kraken:TONUSD", evidence: failed}
+  - {coin: SUI, cmc_id: 20947, kraken_pair: SUIGBP, history: "binance:SUIUSDT", evidence: failed}
+  - {coin: HBAR, cmc_id: 4642, kraken_pair: HBARUSD, history: "binance:HBARUSDT", evidence: tested_ok}
+  - {coin: TAO, cmc_id: 22974, kraken_pair: TAOUSD, history: "binance:TAOUSDT", evidence: failed}
+  - {coin: SHIB, cmc_id: 5994, kraken_pair: SHIBUSD, history: "binance:SHIBUSDT", evidence: tested_ok}
+  - {coin: CRO, cmc_id: 3635, kraken_pair: CROUSD, history: "kraken:CROUSD", evidence: untested_half_size}
+  - {coin: M, cmc_id: 35491, kraken_pair: MUSD, history: "kraken:MUSD", evidence: not_tradable}  # Kraken MUSD is not MemeCore (price 1.18 vs 0.78, no bids)
+  - {coin: AAVE, cmc_id: 7278, kraken_pair: AAVEGBP, history: "binance:AAVEUSDT", evidence: failed}
+  - {coin: PEPE, cmc_id: 24478, kraken_pair: PEPEGBP, history: "binance:PEPEUSDT", evidence: tested_ok}
+  - {coin: ASTER, cmc_id: 36341, kraken_pair: ASTERUSD, history: "binance:ASTERUSDT", evidence: untested_half_size}
+  - {coin: ONDO, cmc_id: 21159, kraken_pair: ONDOUSD, history: "binance:ONDOUSDT", evidence: untested_half_size}
 
 rejected:
-  - {coin: LINK, reason: "Backtest 2019-2026: trend rule -59% (10% stop) / -17% (no stop) vs +264% buy-and-hold"}
-  - {coin: TRX,  reason: "Backtest 2018-2026: trend rule -15% / +164% vs +1600% buy-and-hold; also < 1R on targets"}
-  - {coin: TAO,  reason: "Backtest 2024-2026: trend rule -73% / -80%; 16% win rate"}
+  # Per-coin trend-rule failures are recorded as 'evidence: failed' above (scripts/classify_universe.py).
   - {coin: BTC,  reason: "Oversold-bounce buy (rule B): -20% over 2018-2026 vs +432% buy-and-hold"}

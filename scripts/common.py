@@ -75,13 +75,23 @@ def candles(source: str, refresh: bool = True, drop_open_bar: bool = True) -> pd
     """
     venue, symbol = source.split(":")
     path = CACHE / f"{venue}_{symbol}.csv"
-    if refresh or not path.exists():
-        df = _binance_daily(symbol) if venue == "binance" else _kraken_daily(symbol)
+    cached = None
+    if path.exists():
+        cached = pd.read_csv(path, index_col=0)
+        cached.index = pd.to_datetime(cached.index).date
+    if refresh or cached is None:
+        if venue == "binance":
+            # incremental: only fetch from a few days before the last cached bar
+            start = str(cached.index[-3]) if cached is not None and len(cached) > 3 else "2017-01-01"
+            new = _binance_daily(symbol, start)
+        else:
+            new = _kraken_daily(symbol)  # last 720 bars; merging with the cache keeps older history
+        df = new if cached is None else pd.concat([cached[~cached.index.isin(new.index)], new]).sort_index()
+        df.index.name = "date"
         CACHE.mkdir(parents=True, exist_ok=True)
         df.to_csv(path)
     else:
-        df = pd.read_csv(path, index_col="date", parse_dates=False)
-        df.index = pd.to_datetime(df.index).date
+        df = cached
     if drop_open_bar and len(df) and df.index[-1] >= datetime.now(timezone.utc).date():
         df = df.iloc[:-1]
     return df
