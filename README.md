@@ -3,6 +3,45 @@
 A rules-first **spot** crypto trading system run with Claude. It finds, checks and tracks trades.
 **It never places orders.** Every buy and sell is your decision, and nothing here is financial advice.
 
+## The system in one page
+
+| Part | Rule |
+|---|---|
+| **Market switch** | No new buys unless BTC's last daily close is above its 200-day average |
+| **Entry** | A coin closes above its own 200-day average 2 days in a row (and the switch is on) |
+| **What to buy** | **Core:** BTC 50% and ETH 30% of the account. **Satellites:** 5% each in SOL, AVAX, HBAR, SHIB, PEPE (coins where the rule passed its backtest). At most 5 positions; if more coins signal, take the strongest 90-day performers |
+| **Exit** | 20% trailing stop (from the highest daily close), or a daily close back below the 200-day average |
+| **Costs** | Kraken limit orders (0.25% fee); the backtests assume 0.45% per side |
+| **Safety** | If the account falls 35% below its peak: stop new buys and review the system |
+
+**Whole-system backtest** (`scripts/portfolio_backtest.py`, fees included):
+
+| Test | System | Max drop | Holding BTC | Max drop |
+|---|---:|---:|---:|---:|
+| **Honest:** coins chosen with data to 2022 only, traded Jan 2023 to Nov 2026 | **+151%** (27% a year) | **−23%** | +269% | −53% |
+| 2018–2026 with today's coin choices (flatters the system) | +755% (28% a year) | −28% | +432% | −77% |
+| Old design (10% per coin), honest test | +71% | −25% | | |
+
+**What to expect** (stress test: 2,000 reshuffled versions of history):
+- **Falls of about 30–40% will happen.** About 1 in 20 histories fell 50–60%.
+- **Most trades lose:** about 1 in 3 wins, and up to 8 losses in a row happened in testing.
+- **The profit comes from a few long trends.**
+- **In strong bull markets it can trail simply holding BTC**, because it stays out of the market part of the time; its edge is falling much less in crashes.
+
+## Operating manual
+
+1. **Every day, nothing to do.** Three scheduled checks run and report (00:20, 13:50, 21:10 UTC). Most days: NO CHANGE.
+2. **When "LIKELY TONIGHT" arrives (21:10):** get ready. Check you have cash on Kraken and can log in.
+3. **When "TRIGGER FIRED" arrives (00:20):** run `python scripts/order_ticket.py <COIN>` (or ask Claude). Place
+   the limit buy on Kraken exactly as printed, then the trailing stop once it fills. Add the position to
+   `journal/positions.yaml` and the trade to `journal/trades.csv`.
+4. **When "STOP HIT" arrives, or the coin closes below its average:** sell, then fill in the closing
+   columns of `trades.csv` (exit price, P/L, reason, one-line lesson) and remove the coin from `positions.yaml`.
+5. **Monthly:** run `python scripts/performance.py` (your results vs the backtest) and
+   `python scripts/classify_universe.py` (re-test coins with the new data). Change rules only
+   through a backtest, never in the middle of a trade.
+6. **Never:** add leverage, move a stop further away, buy a coin the board marks SKIP, or skip the journal.
+
 ## How it works
 
 1. **Rules** live in [`config/rules.yaml`](config/rules.yaml): pot size, position size, risk per trade,
@@ -30,7 +69,7 @@ slippage per side, acts on signals from daily closes, and fills at the next day'
 
 | Rule | Result (2018 to Nov 2026) | Decision |
 |---|---|---|
-| **A. Trend:** buy when the coin closes above its 200-day average and BTC is above its own; exit on the trailing stop or a close below the average | BTC, ETH, SOL: much smaller drawdowns than buying and holding with a 20% stop (BTC -55% vs -77%, ETH -44% vs -90%, SOL -48% vs -96%). Fails on LINK, TRX, TAO | **On** for BTC, ETH, SOL. Half size for HYPE and XMR (under a year of data). Off for LINK, TRX, TAO |
+| **A. Trend:** buy when the coin closes above its 200-day average and BTC is above its own; exit on the trailing stop or a close below the average | BTC, ETH, SOL: much smaller drawdowns than buying and holding with a 20% stop (BTC -55% vs -77%, ETH -44% vs -90%, SOL -48% vs -96%). Fails on LINK, TRX, TAO | **On**; per-coin results under Top-30 coverage below |
 | **Trailing stop width** | A 10% stop is too tight for BTC (+83% vs +430% with no stop). Results jump around between 10% and 30%, so there is no single "optimal" value | **20%** (middle choice, not tuned to the best result) |
 | **B. Staged oversold buying** (RSI below 30, below the 200-day average) | BTC -20% vs +432% buy-and-hold. SOL -57% | **Off** |
 | **Wait for a 2nd close above the average** (`research_filters.py`) | 2023–26 hold-out: average profit per trade BTC 6.6% to 8.0%, SOL 7.1% to 7.7%, ETH 14.2% to 12.3%. 2018–22: better on all 3 | **On**. A small edge that cuts one-day false breakouts |
@@ -39,8 +78,8 @@ slippage per side, acts on signals from daily closes, and fills at the next day'
 ### Top-30 coverage (`scripts/classify_universe.py`)
 All 30 tradable top-30 coins are listed on Kraken. The trend rule (20% trailing stop, 2-close confirmation)
 was backtested on each one:
-- **Full size:** BTC, ETH, SOL, AVAX, HBAR, SHIB, PEPE. The rule beat buying and holding on risk-adjusted return with at least 3 years of data.
-- **Half size:** HYPE, CC, CRO, ASTER, ONDO. Too little history to judge.
+- **Rule passed:** BTC, ETH (core), SOL, AVAX, HBAR, SHIB, PEPE (satellites). The rule beat buying and holding on risk-adjusted return with at least 3 years of data.
+- **Too little history to judge:** HYPE, CC, CRO, ASTER, ONDO. Not traded for now (0% allocation); re-tested monthly.
 - **Don't trade with this rule:** BNB, XRP, TRX, ZEC, XMR, DOGE, LINK, ADA, XLM, BCH, NEAR, LTC, UNI, GRAM, SUI, TAO, AAVE.
   It lost money or lagged buy-and-hold badly on these.
 - **Not tradable:** M (Kraken's `MUSD` market isn't MemeCore).
@@ -75,8 +114,10 @@ losses in a row.
 
 ## Position sizing
 
-`python scripts/levels.py`: size = the smaller of 20% of the pot and the amount that loses **2% of the
-pot** at the initial stop. With a 20% stop that's 10% of the pot. Untested coins get half that.
+`python scripts/levels.py [--equity £]` shows each coin's size: BTC 50%, ETH 30%, satellites 5% of the
+current account value, and the loss if the initial 20% stop is hit. The core is deliberately large:
+BTC and ETH carry the trend profits, and the system as a whole kept drops near half of buy-and-hold's.
+The trade-off is that one BTC stop-out costs about 10% of the account.
 
 ## Commands
 
@@ -94,6 +135,18 @@ python scripts/levels.py
 
 ```bash
 python scripts/backtest.py BTC --trades
+```
+
+```bash
+python scripts/portfolio_backtest.py
+```
+
+```bash
+python scripts/order_ticket.py BTC
+```
+
+```bash
+python scripts/performance.py
 ```
 
 ## Data sources

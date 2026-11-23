@@ -1,66 +1,44 @@
-"""Position size and trade maths for each plan in config/watchlist.yaml.
+"""Position sizes and trade maths for every tradable coin (config/rules.yaml 'allocation').
 
-Size = the smaller of (a) max_position_pct of the pot and (b) the amount whose loss at the
-initial stop equals risk_per_trade_pct of the pot. Plans marked untested_half_size get half.
+Size = allocation % x current account value (core coins BTC/ETH, satellites for other 'tested_ok'
+coins). Shows the initial trailing stop, the loss if it is hit, and the fee-adjusted break-even.
 
-Usage:  python scripts/levels.py
-        python scripts/levels.py --entry 72500 --stop-pct 20     # any ad-hoc trade
+Usage:  python scripts/levels.py                 # uses pot_gbp from rules.yaml
+        python scripts/levels.py --equity 5400   # current account value, if different
 """
 from __future__ import annotations
 
 import argparse
-import re
 
-from common import rules, watchlist
-
-
-def position_size(pot, stop_pct, max_position_pct, risk_pct, half=False):
-    by_risk = pot * risk_pct / stop_pct          # loss at stop = size * stop_pct/100 = pot * risk_pct/100
-    size = min(by_risk, pot * max_position_pct / 100)
-    return size / 2 if half else size
-
-
-def ref_price(entry):
-    if isinstance(entry, (int, float)):
-        return float(entry)
-    nums = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", str(entry))]
-    return sum(nums) / len(nums) if nums else None
-
-
-def describe(coin, entry, stop_pct, checkpoints, cfg, half=False):
-    a, c = cfg["account"], cfg["costs"]
-    fee = c["taker_fee_pct"] / 100
-    size = position_size(a["pot_gbp"], stop_pct, a["max_position_pct"], a["risk_per_trade_pct"], half)
-    stop = entry * (1 - stop_pct / 100)
-    loss = size * stop_pct / 100 + size * fee * 2
-    breakeven = entry * (1 + fee) / (1 - fee)
-    rr = ", ".join(f"{cp:,.6g} = {(cp - entry) / (entry - stop):.2f}R" for cp in checkpoints)
-    return (f"| {coin} | {entry:,.6g} | {stop:,.6g} | £{size:,.0f}{' (half)' if half else ''} | "
-            f"£{loss:,.0f} | {breakeven:,.6g} | {rr or '-'} |")
+from common import allocation_pct, rules, watchlist
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--entry", type=float)
-    ap.add_argument("--stop-pct", type=float)
+    ap.add_argument("--equity", type=float, help="current account value in GBP (default: pot_gbp)")
     args = ap.parse_args()
     cfg = rules()
-    ts = args.stop_pct or cfg["stops"]["trailing_stop_pct"]
-    a = cfg["account"]
-    print(f"Pot £{a['pot_gbp']:,}  max {a['max_position_pct']}% per trade  risk {a['risk_per_trade_pct']}% "
-          f"per trade  stop {ts}%  taker fee {cfg['costs']['taker_fee_pct']}%/side\n")
-    print("| Coin | Entry (USD) | Initial stop | Size | Max loss incl. fees | Break-even | Checkpoints |")
-    print("|---|---:|---:|---:|---:|---:|---|")
-    if args.entry:
-        print(describe("ad-hoc", args.entry, ts, [], cfg))
-        return
-    for p in watchlist()["plans"]:
-        e = ref_price(p["entry"])
-        if e is None:
+    eq = args.equity or cfg["account"]["pot_gbp"]
+    ts = cfg["stops"]["trailing_stop_pct"]
+    fee = cfg["costs"]["taker_fee_pct"] / 100
+    wl = watchlist()
+    print(f"Account £{eq:,.0f} · trailing stop {ts}% · taker fee {fee * 100:.2f}%/side "
+          f"(limit orders: {cfg['costs']['maker_fee_pct']}%)\n")
+    print("| Coin | Role | Size % | Size £ | Loss if initial stop hit (incl. fees) | % of account |")
+    print("|---|---|---:|---:|---:|---:|")
+    total = 0
+    for x in wl["plans"] + wl.get("universe", []):
+        pct = allocation_pct(x["coin"], x.get("evidence"), cfg)
+        if pct <= 0:
             continue
-        print(describe(p["coin"], e, ts, p.get("checkpoints", []), cfg, p.get("evidence") == "untested_half_size"))
-    print("\nR = (checkpoint - entry) / (entry - initial stop). Checkpoints are review levels; "
-          "the main exit is the trailing stop or a close below the 200-day average.")
+        size = eq * pct
+        loss = size * ts / 100 + size * fee * 2
+        role = "core" if x["coin"] in cfg["allocation"]["core"] else "satellite"
+        total += pct
+        print(f"| {x['coin']} | {role} | {pct:.0%} | £{size:,.0f} | £{loss:,.0f} | {loss / eq:.1%} |")
+    print(f"\nIf every signal were on at once: {total:.0%} of the account invested "
+          f"(max {cfg['account']['max_open_positions']} positions; strongest 90-day performers first).")
+    print("Break-even after fees: entry x {:.4f}.".format((1 + fee) / (1 - fee)))
 
 
 if __name__ == "__main__":

@@ -27,6 +27,19 @@ def watchlist() -> dict:
     return load_yaml("config/watchlist.yaml")
 
 
+def allocation_pct(coin: str, evidence: str | None, cfg: dict | None = None) -> float:
+    """Position size as a fraction of current account value (config/rules.yaml 'allocation')."""
+    cfg = cfg or rules()
+    al = cfg.get("allocation", {})
+    if coin in al.get("core", {}):
+        return al["core"][coin] / 100
+    if evidence == "tested_ok":
+        return al.get("satellite_pct", 0) / 100
+    if evidence == "untested_half_size":
+        return al.get("half_size_coins", 0) / 100
+    return 0.0
+
+
 # ---------- candles ----------
 
 def _binance_daily(symbol: str, start: str = "2017-01-01") -> pd.DataFrame:

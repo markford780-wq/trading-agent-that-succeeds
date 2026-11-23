@@ -16,7 +16,7 @@ import requests
 
 import patterns
 
-from common import (ROOT, candles, coinmetrics, fear_greed, load_yaml, rsi, rules, sma,
+from common import (ROOT, allocation_pct, candles, coinmetrics, fear_greed, load_yaml, rsi, rules, sma,
                     stablecoin_supply, watchlist)
 
 
@@ -87,18 +87,20 @@ def main():
     out.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|")
     max_spread = cfg["liquidity"]["max_spread_pct"]
     need = cfg.get("filters", {}).get("confirm_closes_above_sma", 1)
-    size_of = {"tested_ok": "full", "untested_half_size": "half", "failed": "none", "not_tradable": "none"}
     for p in wl["plans"] + wl.get("universe", []):
         try:
             s = btc if p["coin"] == "BTC" else coin_status(p["history"], n)
         except Exception as e:  # noqa: BLE001
             out.append(f"| {p['coin']} | no data ({e}) |||||||||"); continue
         t = kraken_ticker(p["kraken_pair"])
+        sz = allocation_pct(p["coin"], p.get("evidence"), cfg)
         vs = (s["close"] / s["sma"] - 1) * 100
         if p.get("evidence") == "not_tradable":
             status = "SKIP: no usable Kraken market"
         elif p.get("evidence") == "failed":
             status = "SKIP: trend rule failed its backtest" + (" (now above avg)" if s["above"] else "")
+        elif sz <= 0:
+            status = "SKIP: not in allocation (too little data)"
         elif s["sma"] != s["sma"]:  # NaN: not enough history
             status = "no 200d avg yet"
         elif not s["above"]:
@@ -112,7 +114,7 @@ def main():
         spread = f"{t['spread_pct']:.3f}%" + (" ⚠️" if t["spread_pct"] > max_spread else "") if t else "no data"
         out.append(f"| {p['coin']} | {s['close']:,.6g} | {s['sma']:,.6g} | {vs:+.1f}% | {s['rsi']:.0f} | "
                    f"{s['d7']:+.1f}% | {s['d30']:+.1f}% | {t['last'] if t else 'no data'} ({p['kraken_pair']}) | "
-                   f"{spread} | {size_of.get(p.get('evidence'), '?')} | {status} |")
+                   f"{spread} | {sz:.0%} | {status} |")
 
     out.append("\n" + context_line())
     try:

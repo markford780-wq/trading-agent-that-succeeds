@@ -4,9 +4,24 @@
 account:
   exchange: Kraken
   pot_gbp: 5000            # confirmed 2026-11-23
-  max_position_pct: 20     # at most 1/5 of the pot in one trade
-  risk_per_trade_pct: 2    # size each trade so hitting the stop loses at most 2% of the pot
+  max_position_pct: 50     # largest single position (the BTC core)
+  risk_per_trade_pct: 2    # legacy per-trade risk sizing; superseded by 'allocation' below
   max_open_positions: 5
+
+allocation:
+  # Core + satellite, % of CURRENT account value, bought when that coin's trend signal fires.
+  # scripts/portfolio_backtest.py, coins chosen with data to 2022 only, traded 2023-11/2026:
+  #   this design +151% (max drop -23%) vs old 10%-each design +71% (-25%) vs holding BTC +269% (-53%).
+  #   2018-2026: +797% (-28%) vs BTC +432% (-77%). 4 designs were tried, so this flatters it a little.
+  # Stress test: expect drops of 30-40% at some point; about 1 in 20 histories reached 50-60%.
+  core:
+    BTC: 50
+    ETH: 30
+  satellite_pct: 5          # each other coin with evidence 'tested_ok'
+  half_size_coins: 0        # 'untested_half_size' coins: not traded (0%)
+  # A 15% drawdown brake (halve new sizes) was tested and rejected: 2018-2026 return fell from
+  # +797% to +266% for a drop only 6 points smaller. Use the review line instead:
+  review_drawdown_pct: 35   # if the account falls this far below its peak: stop new buys, review
 
 costs:                      # Kraken Pro lowest volume tier (check your own tier in Kraken)
   taker_fee_pct: 0.40       # paid on each buy and each sell with market orders
